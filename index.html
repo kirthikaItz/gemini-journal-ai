@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Personal Gemini Journal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Firebase Modular SDKs -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { 
+      getAuth, 
+      signInWithEmailAndPassword, 
+      createUserWithEmailAndPassword, 
+      signOut, 
+      onAuthStateChanged 
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { 
+      getFirestore, 
+      collection, 
+      addDoc, 
+      query, 
+      orderBy, 
+      onSnapshot, 
+      serverTimestamp 
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    // PASTE YOUR ACTUAL FIREBASE CONFIG KEYS HERE:
+    const firebaseConfig = {
+      apiKey: "AIzaSy...",
+      authDomain: "your-project-id.firebaseapp.com",
+      projectId: "your-project-id",
+      storageBucket: "your-project-id.appspot.com",
+      messagingSenderId: "1234567890",
+      appId: "1:1234567890:web:abcdef..."
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    let currentUser = null;
+    let localHistory = [];
+
+    // DOM Elements
+    const authSection = document.getElementById("auth-section");
+    const mainSection = document.getElementById("main-section");
+    const userDisplay = document.getElementById("user-display");
+    const signOutBtn = document.getElementById("sign-out-btn");
+    const loginBtn = document.getElementById("login-btn");
+    const signupBtn = document.getElementById("signup-btn");
+    const emailInput = document.getElementById("email-input");
+    const passwordInput = document.getElementById("password-input");
+    const authError = document.getElementById("auth-error");
+
+    const saveBtn = document.getElementById("save-btn");
+    const noteInput = document.getElementById("note-input");
+    const historyList = document.getElementById("history-list");
+    const statusMsg = document.getElementById("status-msg");
+
+    // Sign Up Flow
+    signupBtn.onclick = async () => {
+      authError.innerText = "";
+      const email = emailInput.value.trim();
+      const pass = passwordInput.value.trim();
+      if (!email || !pass) {
+        authError.innerText = "Please enter both email and password.";
+        return;
+      }
+      try {
+        await createUserWithEmailAndPassword(auth, email, pass);
+      } catch (err) {
+        authError.innerText = err.message;
+      }
+    };
+
+    // Log In Flow
+    loginBtn.onclick = async () => {
+      authError.innerText = "";
+      const email = emailInput.value.trim();
+      const pass = passwordInput.value.trim();
+      if (!email || !pass) {
+        authError.innerText = "Please enter both email and password.";
+        return;
+      }
+      try {
+        await signInWithEmailAndPassword(auth, email, pass);
+      } catch (err) {
+        authError.innerText = err.message;
+      }
+    };
+
+    // Sign Out Flow
+    signOutBtn.onclick = () => signOut(auth);
+
+    // Auth State Monitor
+    onAuthStateChanged(auth, (user) => {
+      currentUser = user;
+      if (user) {
+        userDisplay.innerText = `Logged in: ${user.email}`;
+        authSection.classList.add("hidden");
+        mainSection.classList.remove("hidden");
+        signOutBtn.classList.remove("hidden");
+        listenForEntries(user.uid);
+      } else {
+        userDisplay.innerText = "Sign in to start journaling.";
+        authSection.classList.remove("hidden");
+        mainSection.classList.add("hidden");
+        signOutBtn.classList.add("hidden");
+        historyList.innerHTML = "";
+      }
+    });
+
+    // Real-time Firestore Sync (User-Isolated)
+    function listenForEntries(uid) {
+      const q = query(collection(db, "users", uid, "entries"), orderBy("timestamp", "desc"));
+      onSnapshot(q, (snapshot) => {
+        historyList.innerHTML = "";
+        snapshot.forEach((doc) => {
+          const item = doc.data();
+          const div = document.createElement("div");
+          div.className = "p-4 bg-white rounded-lg shadow-sm border border-slate-200 mb-3";
+          div.innerHTML = `
+            <p class="font-medium text-slate-800">📝 ${item.userText}</p>
+            <div class="mt-2 text-sm text-indigo-950 bg-indigo-50 p-3 rounded border border-indigo-100 leading-relaxed">
+              <strong>Gemini Coach:</strong> ${item.aiReply}
+            </div>
+          `;
+          historyList.appendChild(div);
+        });
+      });
+    }
+
+    // Call Backend Proxy & Store to Firestore
+    saveBtn.onclick = async () => {
+      const text = noteInput.value.trim();
+      if (!text || !currentUser) return;
+
+      saveBtn.disabled = true;
+      statusMsg.innerText = "Gemini is analyzing your thought...";
+
+      try {
+        const res = await fetch("/api/journal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: text, history: localHistory })
+        });
+        const data = await res.json();
+
+        if (data.reply) {
+          localHistory.push({ user: text, bot: data.reply });
+
+          // Save to user's isolated subcollection
+          await addDoc(collection(db, "users", currentUser.uid, "entries"), {
+            userText: text,
+            aiReply: data.reply,
+            timestamp: serverTimestamp()
+          });
+
+          noteInput.value = "";
+          statusMsg.innerText = "Saved to Firestore!";
+          setTimeout(() => { statusMsg.innerText = ""; }, 2500);
+        } else {
+          statusMsg.innerText = "Failed to generate reply.";
+        }
+      } catch (err) {
+        statusMsg.innerText = "Error contacting server.";
+      } finally {
+        saveBtn.disabled = false;
+      }
+    };
+  </script>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 p-6">
+  <div class="max-w-2xl mx-auto space-y-6">
+    
+    <!-- Header -->
+    <header class="flex justify-between items-center bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+      <div>
+        <h1 class="text-xl font-bold text-slate-900">Personal Gemini Journal</h1>
+        <p id="user-display" class="text-xs text-slate-500 mt-0.5">Sign in to start journaling.</p>
+      </div>
+      <button id="sign-out-btn" class="hidden text-xs font-semibold bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-100 transition">
+        Sign Out
+      </button>
+    </header>
+
+    <!-- Authentication Block -->
+    <div id="auth-section" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+      <h2 class="text-base font-semibold text-slate-800">Account Access (Firebase Auth)</h2>
+      <div class="space-y-3">
+        <input id="email-input" type="email" placeholder="Email address" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
+        <input id="password-input" type="password" placeholder="Password (min 6 characters)" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
+      </div>
+      <p id="auth-error" class="text-xs text-red-500 min-h-[1rem]"></p>
+      <div class="flex gap-3">
+        <button id="login-btn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg text-sm transition">
+          Log In
+        </button>
+        <button id="signup-btn" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 rounded-lg text-sm transition">
+          Sign Up
+        </button>
+      </div>
+    </div>
+
+    <!-- Main App (Shows only after login) -->
+    <main id="main-section" class="hidden space-y-6">
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+        <label class="block font-semibold mb-2 text-sm text-slate-700">What's on your mind today?</label>
+        <textarea id="note-input" rows="3" placeholder="Write your reflection, milestone, or challenge..." class="w-full border rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none border-slate-300"></textarea>
+        <div class="flex items-center justify-between mt-3">
+          <span id="status-msg" class="text-xs text-indigo-600 font-medium"></span>
+          <button id="save-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2 rounded-xl text-sm transition">
+            Reflect & Save
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <h2 class="text-base font-bold text-slate-800 mb-3">Your Reflections</h2>
+        <div id="history-list"></div>
+      </div>
+    </main>
+
+  </div>
+</body>
+</html>
