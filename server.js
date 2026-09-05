@@ -38,7 +38,7 @@ app.post('/api/journal', async (req, res) => {
     const { prompt, history } = req.body;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.6-flash',
       contents: [
         {
           role: 'user',
