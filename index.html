@@ -6,7 +6,7 @@
   <title>Personal Gemini Journal</title>
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Firebase Modular SDKs -->
+  <!-- Firebase Scripts -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { 
@@ -26,15 +26,16 @@
       serverTimestamp 
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-    // PASTE YOUR ACTUAL FIREBASE CONFIG KEYS HERE:
+    // PASTE YOUR ACTUAL FIREBASE CONFIG HERE:
     const firebaseConfig = {
-      apiKey: "AIzaSy...",
-      authDomain: "your-project-id.firebaseapp.com",
-      projectId: "your-project-id",
-      storageBucket: "your-project-id.appspot.com",
-      messagingSenderId: "1234567890",
-      appId: "1:1234567890:web:abcdef..."
-    };
+  apiKey: "AIzaSyCXtdHK8rTOsQBUk3mo0d_aZzPHs0oxJtE",
+  authDomain: "project1-4e2c5.firebaseapp.com",
+  projectId: "project1-4e2c5",
+  storageBucket: "project1-4e2c5.firebasestorage.app",
+  messagingSenderId: "970605354729",
+  appId: "1:970605354729:web:a7542cc6d01a9b58a55a78",
+  measurementId: "G-ZW106X4NPM"
+};
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
@@ -59,15 +60,12 @@
     const historyList = document.getElementById("history-list");
     const statusMsg = document.getElementById("status-msg");
 
-    // Sign Up Flow
+    // Sign Up
     signupBtn.onclick = async () => {
       authError.innerText = "";
       const email = emailInput.value.trim();
       const pass = passwordInput.value.trim();
-      if (!email || !pass) {
-        authError.innerText = "Please enter both email and password.";
-        return;
-      }
+      if (!email || !pass) return (authError.innerText = "Enter email and password.");
       try {
         await createUserWithEmailAndPassword(auth, email, pass);
       } catch (err) {
@@ -75,15 +73,12 @@
       }
     };
 
-    // Log In Flow
+    // Sign In
     loginBtn.onclick = async () => {
       authError.innerText = "";
       const email = emailInput.value.trim();
       const pass = passwordInput.value.trim();
-      if (!email || !pass) {
-        authError.innerText = "Please enter both email and password.";
-        return;
-      }
+      if (!email || !pass) return (authError.innerText = "Enter email and password.");
       try {
         await signInWithEmailAndPassword(auth, email, pass);
       } catch (err) {
@@ -91,10 +86,10 @@
       }
     };
 
-    // Sign Out Flow
+    // Sign Out
     signOutBtn.onclick = () => signOut(auth);
 
-    // Auth State Monitor
+    // Auth State Observer
     onAuthStateChanged(auth, (user) => {
       currentUser = user;
       if (user) {
@@ -112,7 +107,7 @@
       }
     });
 
-    // Real-time Firestore Sync (User-Isolated)
+    // Firestore Real-time listener
     function listenForEntries(uid) {
       const q = query(collection(db, "users", uid, "entries"), orderBy("timestamp", "desc"));
       onSnapshot(q, (snapshot) => {
@@ -123,7 +118,7 @@
           div.className = "p-4 bg-white rounded-lg shadow-sm border border-slate-200 mb-3";
           div.innerHTML = `
             <p class="font-medium text-slate-800">📝 ${item.userText}</p>
-            <div class="mt-2 text-sm text-indigo-950 bg-indigo-50 p-3 rounded border border-indigo-100 leading-relaxed">
+            <div class="mt-2 text-sm text-indigo-950 bg-indigo-50 p-3 rounded border border-indigo-100">
               <strong>Gemini Coach:</strong> ${item.aiReply}
             </div>
           `;
@@ -132,7 +127,7 @@
       });
     }
 
-    // Call Backend Proxy & Store to Firestore
+    // AI Chat & Save logic
     saveBtn.onclick = async () => {
       const text = noteInput.value.trim();
       if (!text || !currentUser) return;
@@ -148,24 +143,20 @@
         });
         const data = await res.json();
 
-        if (data.reply) {
-          localHistory.push({ user: text, bot: data.reply });
+        localHistory.push({ user: text, bot: data.reply });
 
-          // Save to user's isolated subcollection
-          await addDoc(collection(db, "users", currentUser.uid, "entries"), {
-            userText: text,
-            aiReply: data.reply,
-            timestamp: serverTimestamp()
-          });
+        // Store to user-isolated Firestore collection
+        await addDoc(collection(db, "users", currentUser.uid, "entries"), {
+          userText: text,
+          aiReply: data.reply,
+          timestamp: serverTimestamp()
+        });
 
-          noteInput.value = "";
-          statusMsg.innerText = "Saved to Firestore!";
-          setTimeout(() => { statusMsg.innerText = ""; }, 2500);
-        } else {
-          statusMsg.innerText = "Failed to generate reply.";
-        }
+        noteInput.value = "";
+        statusMsg.innerText = "Saved to Firestore!";
+        setTimeout(() => statusMsg.innerText = "", 2500);
       } catch (err) {
-        statusMsg.innerText = "Error contacting server.";
+        statusMsg.innerText = "Error contacting Gemini API.";
       } finally {
         saveBtn.disabled = false;
       }
@@ -175,25 +166,25 @@
 <body class="bg-slate-50 min-h-screen text-slate-800 p-6">
   <div class="max-w-2xl mx-auto space-y-6">
     
-    <!-- Header -->
+    <!-- Top Header -->
     <header class="flex justify-between items-center bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
       <div>
         <h1 class="text-xl font-bold text-slate-900">Personal Gemini Journal</h1>
         <p id="user-display" class="text-xs text-slate-500 mt-0.5">Sign in to start journaling.</p>
       </div>
-      <button id="sign-out-btn" class="hidden text-xs font-semibold bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-100 transition">
+      <button id="sign-out-btn" class="hidden text-xs font-semibold bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-100">
         Sign Out
       </button>
     </header>
 
-    <!-- Authentication Block -->
+    <!-- In-Page Authentication Section (No Popups!) -->
     <div id="auth-section" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
       <h2 class="text-base font-semibold text-slate-800">Account Access (Firebase Auth)</h2>
       <div class="space-y-3">
         <input id="email-input" type="email" placeholder="Email address" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
-        <input id="password-input" type="password" placeholder="Password (min 6 characters)" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
+        <input id="password-input" type="password" placeholder="Password (minimum 6 characters)" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
       </div>
-      <p id="auth-error" class="text-xs text-red-500 min-h-[1rem]"></p>
+      <p id="auth-error" class="text-xs text-red-500"></p>
       <div class="flex gap-3">
         <button id="login-btn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg text-sm transition">
           Log In
@@ -204,7 +195,7 @@
       </div>
     </div>
 
-    <!-- Main App (Shows only after login) -->
+    <!-- Journaling Main Section (Revealed when logged in) -->
     <main id="main-section" class="hidden space-y-6">
       <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
         <label class="block font-semibold mb-2 text-sm text-slate-700">What's on your mind today?</label>
